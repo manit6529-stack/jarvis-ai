@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#06111f">
+<title>JARVIS AI</title>
+<style>
+:root{color-scheme:dark;--cyan:#00e5ff;--panel:#0d1b2b;--muted:#9bb2c5}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 50% 5%,#102b43,#050b14 55%);color:#edfaff;font:16px system-ui,Arial,sans-serif}
+header{text-align:center;padding:22px 12px 14px;border-bottom:1px solid #16445c}
+h1{margin:0;color:var(--cyan);letter-spacing:.22em;text-shadow:0 0 18px #00cbe8}
+header p,.hint{color:var(--muted);font-size:13px}
+main{width:min(900px,94%);margin:18px auto 40px}
+.orb{width:126px;height:126px;border:2px solid var(--cyan);border-radius:50%;margin:12px auto 18px;display:grid;place-items:center;font-size:48px;box-shadow:0 0 28px #00bcd4,inset 0 0 22px #00bcd4}
+#status{text-align:center;color:var(--cyan);font-weight:700;margin:10px}
+.panel{background:rgba(13,27,43,.94);border:1px solid #1b4960;border-radius:15px;padding:16px;margin:13px 0}
+h2{font-size:17px;color:var(--cyan);margin:0 0 12px}
+button{border:0;border-radius:9px;background:var(--cyan);color:#00121a;font-weight:750;padding:12px 16px;margin:4px;cursor:pointer}
+button.secondary{background:#20394d;color:#fff}
+button:disabled{opacity:.55;cursor:wait}
+input,textarea{display:block;width:100%;background:#071321;color:#fff;border:1px solid #31566d;border-radius:9px;padding:12px;margin:8px 0;font:inherit}
+textarea{min-height:76px;resize:vertical}
+#chat{height:190px;overflow:auto;background:#06101c;border-radius:9px;padding:10px;white-space:pre-wrap}
+.line{padding:8px 4px;border-bottom:1px solid #193449;line-height:1.5}
+.you{color:#fff}.jarvis{color:#5cecff}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.small{font-size:12px;color:var(--muted);line-height:1.6}
+.output img,.output video{display:block;max-width:100%;max-height:420px;margin:12px auto;border-radius:10px}
+a{color:var(--cyan)}
+</style>
+</head>
+<body>
+<header>
+  <h1>J.A.R.V.I.S</h1>
+  <p>PERSONAL AI PRODUCTION ASSISTANT</p>
+</header>
+<main>
+  <div class="orb">◉</div>
+  <div id="status">READY</div>
+
+  <section class="panel">
+    <h2>🎙 தமிழ் குரல் கட்டளை</h2>
+    <div class="row">
+      <button id="micTestBtn" onclick="testMicrophone()">🎙 மைக் TEST</button>
+      <button id="listenBtn" onclick="startListening()">🎤 பேசுங்கள்</button>
+      <button class="secondary" onclick="stopAll()">STOP</button>
+    </div>
+    <p class="small">முதலில் மைக் TEST அழுத்தி அனுமதி கொடுங்கள். பிறகு பேசுங்கள். உதாரணம்: “நேரம் என்ன?”, “தேதி என்ன?”, “YouTube திற”.</p>
+    <p class="small" id="micHelp">மைக் நிலை: இன்னும் சோதிக்கப்படவில்லை.</p>
+  </section>
+
+  <section class="panel">
+    <h2>🤖 AI CHAT</h2>
+    <div id="chat"><div class="line jarvis">JARVIS: வணக்கம்! நான் தயார். என்ன செய்ய வேண்டும்?</div></div>
+    <textarea id="message" placeholder="தமிழில் அல்லது ஆங்கிலத்தில் எழுதுங்கள்..."></textarea>
+    <button onclick="sendChat()">SEND</button>
+  </section>
+
+  <section class="panel">
+    <h2>🎨 AI IMAGE CREATOR</h2>
+    <textarea id="imagePrompt" placeholder="உருவாக்க வேண்டிய படத்தை விவரிக்கவும்..."></textarea>
+    <button onclick="createImage()">CREATE IMAGE</button>
+    <div id="imageResult" class="output"></div>
+  </section>
+
+  <section class="panel">
+    <h2>🎬 IMAGE TO VIDEO</h2>
+    <input id="sourceImage" type="file" accept="image/*">
+    <textarea id="videoPrompt" placeholder="படத்தில் என்ன இயக்கம் வேண்டும்?"></textarea>
+    <button onclick="createVideo()">CREATE VIDEO</button>
+    <div id="videoResult" class="output"></div>
+  </section>
+
+  <section class="panel">
+    <h2>⚙️ SYSTEM</h2>
+    <div class="small">
+      சாதனம்: <span id="device"></span><br>
+      Voice Recognition: <span id="voice"></span><br>
+      Internet: <span id="internet"></span><br><br>
+      குறிப்பு: Voice கட்டளைகள் மற்றும் நேரம்/தேதி/YouTube/Google போன்ற அடிப்படை வசதிகள் browser ஆதரவைப் பொறுத்து இயங்கும். மைக் அனுமதிக்கு Chrome-ல் HTTPS இணைய முகவரி சிறந்தது. உண்மையான AI Chat, Image, Video உருவாக்க தனி Backend Server மற்றும் AI API தேவை. API key-ஐ இந்த HTML-ல் நேரடியாக வைக்க வேண்டாம்.
+    </div>
+  </section>
+</main>
+
+<script>
+const el=id=>document.getElementById(id);
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognizer=null;
+
+el("device").textContent=/Android|iPhone|iPad/i.test(navigator.userAgent)?"Mobile":"Computer";
+el("voice").textContent=SR?"Speech Recognition supported":"Not supported — Chrome பயன்படுத்தவும்";
+function updateNetwork(){el("internet").textContent=navigator.onLine?"Connected":"Offline"}
+updateNetwork();
+addEventListener("online",updateNetwork);addEventListener("offline",updateNetwork);
+
+function status(s){el("status").textContent=s}
+function addLine(text,who="jarvis"){
+ const d=document.createElement("div");d.className="line "+who;d.textContent=(who==="you"?"நீங்கள்: ":"JARVIS: ")+text;
+ el("chat").appendChild(d);el("chat").scrollTop=el("chat").scrollHeight;
+}
+function speak(text){
+ if(!("speechSynthesis"in window))return;
+ speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(text);u.lang="ta-IN";u.rate=.92;
+ const voice=speechSynthesis.getVoices().find(v=>v.lang.toLowerCase().startsWith("ta"));
+ if(voice)u.voice=voice;
+ u.onstart=()=>status("JARVIS SPEAKING");u.onend=()=>status("READY");
+ speechSynthesis.speak(u);
+}
+async function testMicrophone(){
+  const help=el("micHelp");
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    help.textContent="மைக் அனுமதி கிடைக்கவில்லை. இந்தப் பக்கத்தை HTTPS இணைய முகவரியில் Chrome மூலம் திறக்கவும்.";
+    status("MIC NOT AVAILABLE"); return;
+  }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    stream.getTracks().forEach(track=>track.stop());
+    help.textContent="மைக் OK ✓ அனுமதி கிடைத்தது. இப்போது பேசுங்கள் பட்டனை அழுத்தவும்.";
+    status("MIC READY");
+  }catch(e){
+    const msg = e.name==="NotAllowedError" ? "மைக் அனுமதி மறுக்கப்பட்டுள்ளது. Chrome Site settings > Microphone > Allow செய்யுங்கள்."
+      : e.name==="NotFoundError" ? "மொபைலில் மைக் கிடைக்கவில்லை."
+      : "மைக் திறக்க முடியவில்லை: "+e.name;
+    help.textContent=msg; status("MIC ERROR");
+  }
+}
+async function startListening(){
+  if(!SR){
+    status("Chrome-ல் முயற்சிக்கவும்");
+    el("micHelp").textContent="இந்த browser Voice Recognition-ஐ ஆதரிக்கவில்லை. Android-ல் Google Chrome பயன்படுத்துங்கள்.";
+    return;
+  }
+  if(recognizer){try{recognizer.abort()}catch(e){}}
+  recognizer=new SR();
+  recognizer.lang="ta-IN";
+  recognizer.continuous=false;
+  recognizer.interimResults=false;
+  recognizer.maxAlternatives=1;
+  recognizer.onstart=()=>status("கேட்கிறேன்... பேசுங்கள்");
+  recognizer.onresult=e=>{
+    const words=e.results[0][0].transcript;
+    el("message").value=words;
+    addLine(words,"you");
+    handleCommand(words);
+  };
+  recognizer.onerror=e=>{
+    const messages={
+      "not-allowed":"மைக் அனுமதி இல்லை. Chrome Settings > Site settings > Microphone > Allow செய்யுங்கள்.",
+      "service-not-allowed":"Voice சேவை அனுமதிக்கப்படவில்லை. Chrome-ல் மீண்டும் முயற்சிக்கவும்.",
+      "no-speech":"குரல் கேட்கவில்லை. மைக்கிற்கு அருகில் தெளிவாகப் பேசுங்கள்.",
+      "network":"Voice Recognition-க்கு இணைய இணைப்பு தேவை.",
+      "audio-capture":"மைக் வேறு செயலியில் பயன்படுத்தப்படுகிறது அல்லது கிடைக்கவில்லை."
+    };
+    const msg=messages[e.error]||("Voice பிழை: "+e.error);
+    status(msg); el("micHelp").textContent=msg;
+  };
+  recognizer.onend=()=>{if(el("status").textContent==="கேட்கிறேன்... பேசுங்கள்")status("READY")};
+  try{recognizer.start()}catch(e){status("மீண்டும் மைக் பட்டனை அழுத்துங்கள்")}
+}
+function stopAll(){
+ if(recognizer){try{recognizer.stop()}catch(e){}}
+ if("speechSynthesis"in window)speechSynthesis.cancel();
+ status("STOPPED");
+}
+function handleCommand(text){
+ const t=text.toLowerCase();
+ if(t.includes("நேரம்")||t.includes("time")){
+   const a="இப்போதைய நேரம் "+new Date().toLocaleTimeString("ta-IN");addLine(a);speak(a);el("message").value="";return;
+ }
+ if(t.includes("தேதி")||t.includes("date")){
+   const a="இன்றைய தேதி "+new Date().toLocaleDateString("ta-IN");addLine(a);speak(a);el("message").value="";return;
+ }
+ if(t.includes("யூடியூப்")||t.includes("youtube")){
+   speak("YouTube திறக்கிறேன்");window.open("https://www.youtube.com","_blank");el("message").value="";return;
+ }
+ if(t.includes("கூகுள்")||t.includes("google")){
+   speak("Google திறக்கிறேன்");window.open("https://www.google.com","_blank");el("message").value="";return;
+ }
+ sendChat();
+}
+async function postJSON(path,data){
+ const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+ if(!r.ok)throw new Error("Server error "+r.status);
+ return r.json();
+}
+async function sendChat(){
+ const message=el("message").value.trim();if(!message)return;
+ addLine(message,"you");el("message").value="";status("THINKING...");
+ try{
+   const data=await postJSON("/api/chat",{message,language:"ta"});
+   const answer=data.answer||"பதில் கிடைக்கவில்லை.";addLine(answer);speak(answer);
+ }catch(e){
+   const msg="AI Chat இன்னும் இணைக்கப்படவில்லை. JARVIS-க்கு Backend மற்றும் AI API அமைக்க வேண்டும்.";
+   addLine(msg);status("AI BACKEND NOT CONNECTED");
+ }
+}
+async function createImage(){
+ const prompt=el("imagePrompt").value.trim();if(!prompt){alert("முதலில் Image விளக்கத்தை எழுதுங்கள்");return}
+ status("CREATING IMAGE...");el("imageResult").textContent="படம் உருவாக்கப்படுகிறது...";
+ try{
+   const data=await postJSON("/api/image",{prompt});
+   if(!data.imageUrl)throw new Error("imageUrl இல்லை");
+   el("imageResult").innerHTML="";
+   const img=document.createElement("img");img.src=data.imageUrl;img.alt="AI generated image";el("imageResult").appendChild(img);
+   const a=document.createElement("a");a.href=data.imageUrl;a.download="jarvis-image.png";a.textContent="படத்தை Download செய்யுங்கள்";el("imageResult").appendChild(a);
+   status("IMAGE READY");
+ }catch(e){el("imageResult").textContent="Image AI சேவை இன்னும் இணைக்கப்படவில்லை. Backend + Image API தேவை.";status("IMAGE BACKEND NOT CONNECTED")}
+}
+async function createVideo(){
+ const file=el("sourceImage").files[0],prompt=el("videoPrompt").value.trim();
+ if(!file){alert("முதலில் ஒரு படத்தைத் தேர்வு செய்யுங்கள்");return}
+ if(!prompt){alert("வீடியோ இயக்கத்தை விவரியுங்கள்");return}
+ status("UPLOADING IMAGE...");
+ const form=new FormData();form.append("image",file);form.append("prompt",prompt);
+ try{
+   const r=await fetch("/api/video",{method:"POST",body:form});
+   if(!r.ok)throw new Error("Server error "+r.status);
+   const data=await r.json();
+   if(!data.videoUrl)throw new Error("videoUrl இல்லை");
+   el("videoResult").innerHTML="";
+   const v=document.createElement("video");v.src=data.videoUrl;v.controls=true;v.playsInline=true;el("videoResult").appendChild(v);
+   const a=document.createElement("a");a.href=data.videoUrl;a.download="jarvis-video.mp4";a.textContent="வீடியோ Download";el("videoResult").appendChild(a);
+   status("VIDEO READY");
+ }catch(e){el("videoResult").textContent="Video AI சேவை இன்னும் இணைக்கப்படவில்லை. Backend + Image-to-Video API தேவை.";status("VIDEO BACKEND NOT CONNECTED")}
+}
+</script>
+</body>
+</html>
